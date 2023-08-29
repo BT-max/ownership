@@ -1,3 +1,4 @@
+import json
 import requests
 from bs4 import BeautifulSoup
 
@@ -14,59 +15,40 @@ def get_html(url):
     """
     Sends a GET request to the provided URL and returns the response.
     """
-    try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()  # Raises a HTTPError if the status is 4xx, 5xx
-    except (requests.RequestException, ValueError):
-        print("Network error")
-        return None
-    return response.text if response.status_code == 200 else None
+    with requests.Session() as session:
+        session.headers.update(HEADERS)
+        try:
+            response = session.get(url)
+            response.raise_for_status()
+            return response.text
+        except (requests.RequestException, ValueError):
+            print("Network error")
+            return None
+
+
+def parse_table(soup, index):
+    table_data = []
+    table = soup.find_all('table')[index]
+    for row in table.find_all('tr')[1:]:
+        cells = [cell.text.strip() for cell in row.find_all('td')]
+        table_data.append(cells)
+    return table_data
 
 
 def get_data(soup):
-    data = {
-        "Major Holders": {
-            "Breakdown": [],
-            "Top Institutional Holders": [],
-            "Top Mutual Fund Holders": []
-        }
+    breakdown_data = parse_table(soup, 0)
+    institutional_holders_data = parse_table(soup, 1)
+    mutual_fund_holders_data = parse_table(soup, 2)
+
+    return {
+        "Breakdown": [{"percentage": item[0], "description": item[1]} for item in breakdown_data],
+        "Top Institutional Holders": [
+            {"holder": item[0], "shares": item[1], "date_reported": item[2], "percentage_out": item[3],
+             "value": item[4]} for item in institutional_holders_data],
+        "Top Mutual Fund Holders": [
+            {"holder": item[0], "shares": item[1], "date_reported": item[2], "percentage_out": item[3],
+             "value": item[4]} for item in mutual_fund_holders_data]
     }
-
-    # Extract breakdown
-    table = soup.find_all('table')[0]
-    for row in table.find_all('tr'):
-        cells = row.find_all('td')
-        data["Major Holders"]["Breakdown"].append({
-            "percentage": cells[0].text.strip(),
-            "description": cells[1].text.strip()
-        })
-
-    # Extract top institutional holders
-    table = soup.find_all('table')[1]
-    for row in table.find_all('tr')[1:]:
-        cells = row.find_all('td')
-        data["Major Holders"]["Top Institutional Holders"].append({
-            "holder": cells[0].text.strip(),
-            "shares": cells[1].text.strip(),
-            "date_reported": cells[2].text.strip(),
-            "percentage_out": cells[3].text.strip(),
-            "value": cells[4].text.strip()
-        })
-
-    # Extract top mutual fund holders
-    table = soup.find_all('table')[2]
-    for row in table.find_all('tr')[1:]:
-        cells = row.find_all('td')
-        data["Major Holders"]["Top Mutual Fund Holders"].append({
-            "holder": cells[0].text.strip(),
-            "shares": cells[1].text.strip(),
-            "date_reported": cells[2].text.strip(),
-            "percentage_out": cells[3].text.strip(),
-            "value": cells[4].text.strip()
-        })
-
-    # Print the data in JSON format
-    return data
 
 
 def get_ownership(ticker):
@@ -74,11 +56,9 @@ def get_ownership(ticker):
     html = get_html(url)
     if not html:
         return {
-            "Major Holders": {
-                "Breakdown": [],
-                "Top Institutional Holders": [],
-                "Top Mutual Fund Holders": []
-            }
+            "Breakdown": [],
+            "Top Institutional Holders": [],
+            "Top Mutual Fund Holders": []
         }
 
     soup = BeautifulSoup(html, 'html.parser')
@@ -87,4 +67,4 @@ def get_ownership(ticker):
 
 
 if __name__ == '__main__':
-    get_ownership("AAPL")
+    print(json.dumps(get_ownership(input("Enter Ticker: ")), indent=4))
