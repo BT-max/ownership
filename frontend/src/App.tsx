@@ -1,7 +1,7 @@
-import Homepage from './components/Homepage.tsx'
+import SearchBar from './components/SearchBar.tsx'
 
 function App() {
-  return <Homepage />
+  return <SearchBar title="View Majority Shareholders" />
 }
 
 export default App
